@@ -262,16 +262,18 @@ async function sendMessage(text) {
         }
 
         asstMsg.typing = false;
+        let alreadyRendered = false;
 
         if (data.status === 'success') {
             asstMsg.content = data.result || data.message || JSON.stringify(data, null, 2);
             updateMessage(asstMsg);
+            alreadyRendered = true;
             updateConnectionStatus('online');
         } else if (data.status === 'queued') {
             asstMsg.content = 'Request queued. Checking status...';
             updateMessage(asstMsg);
-            // Poll for result if task_id provided
             pollTaskResult(asstMsg, data.task_id);
+            saveState();
             return;
         } else {
             asstMsg.content = `Error: ${data.message || data.error || 'Unknown error'}`;
@@ -285,7 +287,7 @@ async function sendMessage(text) {
         updateConnectionStatus('offline');
     }
 
-    updateMessage(asstMsg);
+    if (!alreadyRendered) updateMessage(asstMsg);
     saveState();
 }
 
