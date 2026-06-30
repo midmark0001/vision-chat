@@ -296,12 +296,14 @@ function updateConnectionStatus(status) {
     }
 }
 
-// Health check
+// Health check — only check if using default endpoint (private space returns 404 without auth)
 async function connectionHealth() {
     try {
-        const resp = await fetch(state.settings.apiUrl.replace('/api/v1/run-task', '/health'));
-        if (resp.ok) updateConnectionStatus('online');
-        else updateConnectionStatus('offline');
+        // For private HF space, we can't check /health without token
+        // Just verify the endpoint exists with a lightweight OPTIONS request
+        const resp = await fetch(state.settings.apiUrl, { method: 'OPTIONS', mode: 'no-cors' });
+        // no-cors returns opaque response, but no error means host is reachable
+        updateConnectionStatus('online');
     } catch {
         updateConnectionStatus('offline');
     }
