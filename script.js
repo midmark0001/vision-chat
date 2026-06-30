@@ -2,7 +2,7 @@
 // Uses a proxy URL that injects the token server-side
 // The API_URL setting defaults to the Cloudflare Worker proxy we'll set up
 
-const DEFAULT_API_URL = 'https://midking12-vision-gateway.hf.space/api/v1/run-task';
+const DEFAULT_API_URL = 'https://zombiemark-omega-pipeline-7a3b.hf.space/api/v1/run-task';
 
 // State
 let state = {
@@ -173,10 +173,10 @@ async function sendMessage(text) {
     const conv = getCurrentConv();
     if (!conv) return;
 
-    if (!state.settings.email || !state.settings.password || !state.settings.apiToken) {
+    if (!state.settings.email || !state.settings.password) {
         renderMessage({
             role: 'assistant',
-            content: '⚠️ Please set your API Token, Email, and Password in Settings (gear icon bottom-left of sidebar) before sending requests.',
+            content: '⚠️ Please set your Email and Password in Settings (gear icon bottom-left of sidebar) before sending requests.',
             error: true
         });
         return;
@@ -203,16 +203,16 @@ async function sendMessage(text) {
         formData.append('password', state.settings.password);
         formData.append('message', text);
 
-        const headers = {};
+        const fetchOptions = {
+            method: 'POST',
+            body: formData
+        };
+        // Only send auth header if user configured a token (for private spaces)
         if (state.settings.apiToken) {
-            headers['Authorization'] = `Bearer ${state.settings.apiToken}`;
+            fetchOptions.headers = { 'Authorization': `Bearer ${state.settings.apiToken}` };
         }
 
-        const resp = await fetch(state.settings.apiUrl, {
-            method: 'POST',
-            headers,
-            body: formData
-        });
+        const resp = await fetch(state.settings.apiUrl, fetchOptions);
 
         const text_res = await resp.text();
         let data;
@@ -309,14 +309,17 @@ function updateConnectionStatus(status) {
     }
 }
 
-// Health check — only check if using default endpoint (private space returns 404 without auth)
+// Health check — public space, can check directly
 async function connectionHealth() {
     try {
-        // For private HF space, we can't check /health without token
-        // Just verify the endpoint exists with a lightweight OPTIONS request
-        const resp = await fetch(state.settings.apiUrl, { method: 'OPTIONS', mode: 'no-cors' });
-        // no-cors returns opaque response, but no error means host is reachable
-        updateConnectionStatus('online');
+        const resp = await fetch(state.settings.apiUrl.replace('/api/v1/run-task', '/health'));
+        if (resp.ok) {
+            const data = await resp.json();
+            if (data.status === 'ok') updateConnectionStatus('online');
+            else updateConnectionStatus('offline');
+        } else {
+            updateConnectionStatus('offline');
+        }
     } catch {
         updateConnectionStatus('offline');
     }
