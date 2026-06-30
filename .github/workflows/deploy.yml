@@ -26,11 +26,8 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
-      - name: Inject API Token
-        run: |
-          # Replace the placeholder API token with the secret
-          sed -i "s|__HF_TOKEN__|${{ secrets.HF_TOKEN }}|g" script.js
-          echo "Token injected."
+      - name: No build step needed (static site)
+        run: echo "Static site — no token injection needed."
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

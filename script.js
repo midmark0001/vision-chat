@@ -3,7 +3,6 @@
 // The API_URL setting defaults to the Cloudflare Worker proxy we'll set up
 
 const DEFAULT_API_URL = 'https://midking12-vision-gateway.hf.space/api/v1/run-task';
-const HF_TOKEN = '__HF_TOKEN__';
 
 // State
 let state = {
@@ -12,7 +11,7 @@ let state = {
     attachedImage: null,
     settings: {
         apiUrl: DEFAULT_API_URL,
-        apiToken: HF_TOKEN,
+        apiToken: '',
         email: '',
         password: ''
     }
@@ -174,10 +173,10 @@ async function sendMessage(text) {
     const conv = getCurrentConv();
     if (!conv) return;
 
-    if (!state.settings.email || !state.settings.password) {
+    if (!state.settings.email || !state.settings.password || !state.settings.apiToken) {
         renderMessage({
             role: 'assistant',
-            content: '⚠️ Please set your Email and Password in Settings (gear icon bottom-left of sidebar) before sending requests.',
+            content: '⚠️ Please set your API Token, Email, and Password in Settings (gear icon bottom-left of sidebar) before sending requests.',
             error: true
         });
         return;
@@ -204,16 +203,30 @@ async function sendMessage(text) {
         formData.append('password', state.settings.password);
         formData.append('message', text);
 
+        const headers = {};
         if (state.settings.apiToken) {
-            formData.append('token', state.settings.apiToken);
+            headers['Authorization'] = `Bearer ${state.settings.apiToken}`;
         }
 
         const resp = await fetch(state.settings.apiUrl, {
             method: 'POST',
+            headers,
             body: formData
         });
 
-        const data = await resp.json();
+        const text_res = await resp.text();
+        let data;
+        try {
+            data = JSON.parse(text_res);
+        } catch {
+            asstMsg.typing = false;
+            asstMsg.content = `API error (HTTP ${resp.status}): Response is not JSON. Check your API Token and endpoint URL.`;
+            asstMsg.error = true;
+            renderMessage(asstMsg);
+            saveState();
+            updateConnectionStatus('offline');
+            return;
+        }
 
         asstMsg.typing = false;
 
