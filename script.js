@@ -2,7 +2,7 @@
 // Uses a proxy URL that injects the token server-side
 // The API_URL setting defaults to the Cloudflare Worker proxy we'll set up
 
-const DEFAULT_API_URL = 'https://zombiemark-omega-pipeline-7a3b.hf.space/api/v1/run-task';
+const DEFAULT_API_URL = 'https://vision-gateway-api.onrender.com/api/v1/run-task';
 
 // State
 let state = {
