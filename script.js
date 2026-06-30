@@ -1,6 +1,6 @@
 // Vision Chat - GitHub Pages Frontend
-// Uses a proxy URL that injects the token server-side
-// The API_URL setting defaults to the Cloudflare Worker proxy we'll set up
+// Connects to the Render-deployed vision gateway API
+// Authentication is handled via email/password (no token needed)
 
 const DEFAULT_API_URL = 'https://vision-gateway-api.onrender.com/api/v1/run-task';
 
@@ -11,7 +11,6 @@ let state = {
     attachedImage: null,
     settings: {
         apiUrl: DEFAULT_API_URL,
-        apiToken: '',
         email: '',
         password: ''
     }
@@ -25,7 +24,7 @@ function cacheEls() {
         'chatTitle', 'clearChat', 'messages', 'welcome', 'imagePreview', 'previewImg',
         'removeImage', 'attachBtn', 'fileInput', 'messageInput', 'sendBtn',
         'connectionStatus', 'settingsBtn', 'settingsModal', 'closeSettings',
-        'apiUrl', 'apiToken', 'email', 'password'
+        'apiUrl', 'email', 'password'
     ].forEach(id => els[document.getElementById(id).id] = document.getElementById(id));
 }
 
@@ -39,7 +38,6 @@ function loadState() {
         }
     } catch {}
     els.apiUrl.value = state.settings.apiUrl;
-    els.apiToken.value = state.settings.apiToken;
     els.email.value = state.settings.email;
     els.password.value = state.settings.password;
 }
@@ -203,16 +201,10 @@ async function sendMessage(text) {
         formData.append('password', state.settings.password);
         formData.append('message', text);
 
-        const fetchOptions = {
+        const resp = await fetch(state.settings.apiUrl, {
             method: 'POST',
             body: formData
-        };
-        // Only send auth header if user configured a token (for private spaces)
-        if (state.settings.apiToken) {
-            fetchOptions.headers = { 'Authorization': `Bearer ${state.settings.apiToken}` };
-        }
-
-        const resp = await fetch(state.settings.apiUrl, fetchOptions);
+        });
 
         const text_res = await resp.text();
         let data;
@@ -220,7 +212,7 @@ async function sendMessage(text) {
             data = JSON.parse(text_res);
         } catch {
             asstMsg.typing = false;
-            asstMsg.content = `API error (HTTP ${resp.status}): Response is not JSON. Check your API Token and endpoint URL.`;
+            asstMsg.content = `API error (HTTP ${resp.status}): ${text_res.substring(0,200)}. Check credentials and endpoint URL.`;
             asstMsg.error = true;
             renderMessage(asstMsg);
             saveState();
@@ -425,13 +417,12 @@ function initEvents() {
 
     const saveSettings = () => {
         state.settings.apiUrl = els.apiUrl.value.trim() || DEFAULT_API_URL;
-        state.settings.apiToken = els.apiToken.value.trim();
         state.settings.email = els.email.value.trim();
         state.settings.password = els.password.value.trim();
         saveState();
     };
 
-    [els.apiUrl, els.apiToken, els.email, els.password].forEach(input => {
+    [els.apiUrl, els.email, els.password].forEach(input => {
         input.addEventListener('input', saveSettings);
         input.addEventListener('change', saveSettings);
     });
