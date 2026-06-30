@@ -122,6 +122,7 @@ function renderMessage(msg, isStreaming = false) {
     const div = document.createElement('div');
     div.className = `message ${msg.role}`;
     if (msg.error) div.classList.add('error');
+    if (msg.typing) div.classList.add('typing');
 
     const avatar = document.createElement('div');
     avatar.className = 'message-avatar';
@@ -166,6 +167,18 @@ function scrollToBottom() {
     els.messages.scrollTop = els.messages.scrollHeight;
 }
 
+// Update an existing message bubble in-place (replaces typing dots)
+function updateMessage(msg) {
+    // Find the last message div for this conversation that has .typing in DOM
+    const bubbles = els.messages.querySelectorAll('.message.typing');
+    const lastTyping = bubbles[bubbles.length - 1];
+    if (lastTyping) {
+        // Replace the typing message div with a fresh render of this message
+        lastTyping.remove();
+    }
+    renderMessage(msg);
+}
+
 // API call with image
 async function sendMessage(text) {
     const conv = getCurrentConv();
@@ -201,6 +214,34 @@ async function sendMessage(text) {
         formData.append('password', state.settings.password);
         formData.append('message', text);
 
+        // Attach image if present (convert base64 to Blob)
+        if (state.attachedImage) {
+            try {
+                const base64Data = state.attachedImage;
+                // Handle both raw base64 and data:URI formats
+                let base64, mime;
+                if (base64Data.startsWith('data:')) {
+                    const match = base64Data.match(/^data:(image\/\w+);base64,(.+)$/);
+                    if (match) {
+                        mime = match[1];
+                        base64 = match[2];
+                    }
+                } else {
+                    mime = 'image/png';
+                    base64 = base64Data;
+                }
+                if (base64) {
+                    const binary = atob(base64);
+                    const bytes = new Uint8Array(binary.length);
+                    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+                    const blob = new Blob([bytes], { type: mime });
+                    formData.append('image', blob, 'upload.' + mime.split('/')[1]);
+                }
+            } catch (e) {
+                console.warn('Failed to attach image:', e);
+            }
+        }
+
         const resp = await fetch(state.settings.apiUrl, {
             method: 'POST',
             body: formData
@@ -214,7 +255,7 @@ async function sendMessage(text) {
             asstMsg.typing = false;
             asstMsg.content = `API error (HTTP ${resp.status}): ${text_res.substring(0,200)}. Check credentials and endpoint URL.`;
             asstMsg.error = true;
-            renderMessage(asstMsg);
+            updateMessage(asstMsg);
             saveState();
             updateConnectionStatus('offline');
             return;
@@ -224,10 +265,11 @@ async function sendMessage(text) {
 
         if (data.status === 'success') {
             asstMsg.content = data.result || data.message || JSON.stringify(data, null, 2);
+            updateMessage(asstMsg);
             updateConnectionStatus('online');
         } else if (data.status === 'queued') {
             asstMsg.content = 'Request queued. Checking status...';
-            renderMessage(asstMsg);
+            updateMessage(asstMsg);
             // Poll for result if task_id provided
             pollTaskResult(asstMsg, data.task_id);
             return;
@@ -243,7 +285,7 @@ async function sendMessage(text) {
         updateConnectionStatus('offline');
     }
 
-    renderMessage(asstMsg);
+    updateMessage(asstMsg);
     saveState();
 }
 
